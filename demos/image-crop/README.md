@@ -1,4 +1,4 @@
-# Crop Image
+# Image Crop
 
 Learning from [react-image-crop](https://github.com/dominictobias/react-image-crop)
 
