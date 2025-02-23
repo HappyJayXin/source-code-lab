@@ -2,27 +2,57 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+interface Crop {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
-const DEFAULT_CROP = { x: 50, y: 50, width: 160, height: 90 };
+interface ImageSize {
+  width: number;
+  height: number;
+}
+
+type ResizeDir = 'nw' | 'ne' | 'sw' | 'se';
+
+interface ActionStart {
+  startX: number;
+  startY: number;
+  initialCrop: Crop;
+}
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.min(Math.max(value, min), max);
+
+const DEFAULT_CROP: Crop = { x: 50, y: 50, width: 160, height: 90 };
 
 const ImageCrop = () => {
-  const [crop, setCrop] = useState(DEFAULT_CROP);
-  const [isDragging, setIsDragging] = useState(false);
-  const [resizeDir, setResizeDir] = useState(null);
-  const [imageSize, setImageSize] = useState(null);
-  const [aspectRatio, setAspectRatio] = useState(16 / 9);
+  const [crop, setCrop] = useState<Crop>(DEFAULT_CROP);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [resizeDir, setResizeDir] = useState<ResizeDir | null>(null);
+  const [imageSize, setImageSize] = useState<ImageSize | null>(null);
+  const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
 
-  const imgRef = useRef(null);
-  const actionStartRef = useRef(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const actionStartRef = useRef<ActionStart | null>(null);
 
-  const handleImageLoad = () => {
+  const handleImageLoad = (): void => {
     if (imgRef.current) {
-      setImageSize({ width: imgRef.current.naturalWidth, height: imgRef.current.naturalHeight });
+      setImageSize({
+        width: imgRef.current.naturalWidth,
+        height: imgRef.current.naturalHeight,
+      });
     }
   };
 
-  const containCrop = (crop, imgWidth, imgHeight) => {
+  useEffect(() => {
+    if (imgRef.current && imgRef.current.complete) {
+      handleImageLoad();
+    }
+  }, []);
+
+  const containCrop = (crop: Crop, imgWidth: number, imgHeight: number): Crop => {
     let newWidth = clamp(crop.width, 10, imgWidth);
     let newHeight = newWidth / aspectRatio;
 
@@ -39,7 +69,7 @@ const ImageCrop = () => {
     };
   };
 
-  const handleMouseDown = (e) => {
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     actionStartRef.current = {
       startX: e.clientX,
@@ -49,7 +79,7 @@ const ImageCrop = () => {
     setIsDragging(true);
   };
 
-  const handleResizeMouseDown = (e, direction) => {
+  const handleResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>, direction: ResizeDir) => {
     e.preventDefault();
     e.stopPropagation();
     actionStartRef.current = {
@@ -61,13 +91,13 @@ const ImageCrop = () => {
   };
 
   const handleMouseMove = useCallback(
-    (e) => {
+    (e: MouseEvent) => {
       if ((!isDragging && !resizeDir) || !actionStartRef.current || !imageSize) return;
 
       const { startX, startY, initialCrop } = actionStartRef.current;
       const deltaX = e.clientX - startX;
       const deltaY = e.clientY - startY;
-      let newCrop = { ...initialCrop };
+      let newCrop: Crop = { ...initialCrop };
 
       if (isDragging) {
         newCrop.x = initialCrop.x + deltaX;
@@ -84,7 +114,7 @@ const ImageCrop = () => {
       newCrop = containCrop(newCrop, imageSize.width, imageSize.height);
       setCrop(newCrop);
     },
-    [isDragging, resizeDir, imageSize]
+    [isDragging, resizeDir, imageSize, aspectRatio]
   );
 
   const handleMouseUp = useCallback(() => {
@@ -104,19 +134,28 @@ const ImageCrop = () => {
     };
   }, [handleMouseMove, handleMouseUp]);
 
-  const KEY_ACTIONS = {
+  type KeyAction = (crop: Crop, step: number) => Crop;
+  const KEY_ACTIONS: { [key: string]: KeyAction } = {
     ArrowLeft: (crop, step) => ({ ...crop, x: crop.x - step }),
     ArrowRight: (crop, step) => ({ ...crop, x: crop.x + step }),
     ArrowUp: (crop, step) => ({ ...crop, y: crop.y - step }),
     ArrowDown: (crop, step) => ({ ...crop, y: crop.y + step }),
-    '+': (crop) => ({ ...crop, width: crop.width + 10, height: (crop.width + 10) / aspectRatio }),
-    '-': (crop) => ({ ...crop, width: crop.width - 10, height: (crop.width - 10) / aspectRatio }),
+    '+': (crop) => ({
+      ...crop,
+      width: crop.width + 10,
+      height: (crop.width + 10) / aspectRatio,
+    }),
+    '-': (crop) => ({
+      ...crop,
+      width: crop.width - 10,
+      height: (crop.width - 10) / aspectRatio,
+    }),
     r: () => DEFAULT_CROP,
     R: () => DEFAULT_CROP,
   };
 
   const handleKeyDown = useCallback(
-    (e) => {
+    (e: KeyboardEvent) => {
       if (!imageSize) return;
 
       let step = 2;
@@ -129,7 +168,7 @@ const ImageCrop = () => {
         setCrop(newCrop);
       }
     },
-    [crop, imageSize]
+    [crop, imageSize, aspectRatio]
   );
 
   useEffect(() => {
@@ -140,46 +179,49 @@ const ImageCrop = () => {
   }, [handleKeyDown]);
 
   return (
-    <div>
-      <img
-        ref={imgRef}
-        src="https://fastly.picsum.photos/id/1062/800/600.jpg?hmac=gvqw06N1zijytxKxLzRgM7m-xp2v6wYSnj0LpBDvSI0"
-        alt="demo"
-        onLoad={handleImageLoad}
-        style={{ display: 'block', maxWidth: '100%' }}
-      />
-      {imageSize && (
-        <div
-          style={{
-            position: 'absolute',
-            left: `${crop.x}px`,
-            top: `${crop.y}px`,
-            width: `${crop.width}px`,
-            height: `${crop.height}px`,
-            border: '2px dashed #fff',
-            boxShadow: '0 0 0 10000px rgba(0,0,0,0.5)',
-            cursor: isDragging ? 'move' : 'default',
-          }}
-          onMouseDown={handleMouseDown}
-        >
-          {['nw', 'ne', 'sw', 'se'].map((dir) => (
-            <div
-              key={dir}
-              style={{
-                position: 'absolute',
-                [dir.includes('n') ? 'top' : 'bottom']: '-5px',
-                [dir.includes('w') ? 'left' : 'right']: '-5px',
-                width: '10px',
-                height: '10px',
-                background: '#fff',
-                border: '1px solid #000',
-                cursor: `${dir}-resize`,
-              }}
-              onMouseDown={(e) => handleResizeMouseDown(e, dir)}
-            />
-          ))}
-        </div>
-      )}
+    <>
+      <div style={{ position: 'relative', display: 'inline-block', overflow: 'hidden' }}>
+        <img
+          ref={imgRef}
+          src="https://fastly.picsum.photos/id/1062/800/600.jpg?hmac=gvqw06N1zijytxKxLzRgM7m-xp2v6wYSnj0LpBDvSI0"
+          alt="demo"
+          onLoad={handleImageLoad}
+          style={{ display: 'block', maxWidth: '100%' }}
+        />
+
+        {imageSize && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${crop.x}px`,
+              top: `${crop.y}px`,
+              width: `${crop.width}px`,
+              height: `${crop.height}px`,
+              border: '2px dashed #fff',
+              boxShadow: '0 0 0 10000px rgba(0,0,0,0.5)',
+              cursor: isDragging ? 'move' : 'default',
+            }}
+            onMouseDown={handleMouseDown}
+          >
+            {(['nw', 'ne', 'sw', 'se'] as ResizeDir[]).map((dir) => (
+              <div
+                key={dir}
+                style={{
+                  position: 'absolute',
+                  [dir.includes('n') ? 'top' : 'bottom']: '-5px',
+                  [dir.includes('w') ? 'left' : 'right']: '-5px',
+                  width: '10px',
+                  height: '10px',
+                  background: '#fff',
+                  border: '1px solid #000',
+                  cursor: `${dir}-resize`,
+                }}
+                onMouseDown={(e) => handleResizeMouseDown(e, dir)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       <div style={{ marginBottom: '10px' }}>
         <button onClick={() => setAspectRatio(1)}>1:1</button>
@@ -195,7 +237,7 @@ const ImageCrop = () => {
           {resizeDir && ` Resizing: ${resizeDir}`}
         </div>
       )}
-    </div>
+    </>
   );
 };
 
