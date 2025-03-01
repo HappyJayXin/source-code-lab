@@ -2,6 +2,9 @@
 
 Learning from [react-image-crop](https://github.com/dominictobias/react-image-crop)
 
+## Snapshots
+![main-ui](./snapshots/main-ui.png)
+
 ## Getting Started
 
 First, run the development server:
