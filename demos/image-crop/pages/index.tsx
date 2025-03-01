@@ -1,9 +1,7 @@
 import ImageCrop from '@/components/ImageCrop';
 
-export default function Home() {
-  return (
-    <>
-      <ImageCrop />
-    </>
-  );
-}
+const Home = () => {
+  return <ImageCrop />;
+};
+
+export default Home;

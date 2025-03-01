@@ -1,26 +1,9 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-
-interface Crop {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface ImageSize {
-  width: number;
-  height: number;
-}
-
-type ResizeDir = 'nw' | 'ne' | 'sw' | 'se';
-
-interface ActionStart {
-  startX: number;
-  startY: number;
-  initialCrop: Crop;
-}
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Crop, ResizeDir, ImageSize, ActionStart } from "./types";
+import useKeyboard from "./useKeyboard";
+import Overlay from "./overlay";
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(Math.max(value, min), max);
@@ -33,6 +16,8 @@ const ImageCrop = () => {
   const [resizeDir, setResizeDir] = useState<ResizeDir | null>(null);
   const [imageSize, setImageSize] = useState<ImageSize | null>(null);
   const [aspectRatio, setAspectRatio] = useState<number>(16 / 9);
+
+  useKeyboard(crop, setCrop, aspectRatio);
 
   const imgRef = useRef<HTMLImageElement>(null);
   const actionStartRef = useRef<ActionStart | null>(null);
@@ -103,8 +88,8 @@ const ImageCrop = () => {
         newCrop.x = initialCrop.x + deltaX;
         newCrop.y = initialCrop.y + deltaY;
       } else if (resizeDir) {
-        if (resizeDir.includes('e')) newCrop.width = initialCrop.width + deltaX;
-        if (resizeDir.includes('w')) {
+        if (resizeDir.includes("e")) newCrop.width = initialCrop.width + deltaX;
+        if (resizeDir.includes("w")) {
           newCrop.x = initialCrop.x + deltaX;
           newCrop.width = initialCrop.width - deltaX;
         }
@@ -126,114 +111,46 @@ const ImageCrop = () => {
   }, [isDragging, resizeDir]);
 
   useEffect(() => {
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
     };
   }, [handleMouseMove, handleMouseUp]);
 
-  type KeyAction = (crop: Crop, step: number) => Crop;
-  const KEY_ACTIONS: { [key: string]: KeyAction } = {
-    ArrowLeft: (crop, step) => ({ ...crop, x: crop.x - step }),
-    ArrowRight: (crop, step) => ({ ...crop, x: crop.x + step }),
-    ArrowUp: (crop, step) => ({ ...crop, y: crop.y - step }),
-    ArrowDown: (crop, step) => ({ ...crop, y: crop.y + step }),
-    '+': (crop) => ({
-      ...crop,
-      width: crop.width + 10,
-      height: (crop.width + 10) / aspectRatio,
-    }),
-    '-': (crop) => ({
-      ...crop,
-      width: crop.width - 10,
-      height: (crop.width - 10) / aspectRatio,
-    }),
-    r: () => DEFAULT_CROP,
-    R: () => DEFAULT_CROP,
-  };
-
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (!imageSize) return;
-
-      let step = 2;
-      if (e.shiftKey) step = 10;
-      if (e.ctrlKey) step = 50;
-
-      if (KEY_ACTIONS[e.key]) {
-        let newCrop = KEY_ACTIONS[e.key](crop, step);
-        newCrop = containCrop(newCrop, imageSize.width, imageSize.height);
-        setCrop(newCrop);
-      }
-    },
-    [crop, imageSize, aspectRatio]
-  );
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [handleKeyDown]);
-
   return (
     <>
-      <div style={{ position: 'relative', display: 'inline-block', overflow: 'hidden' }}>
+      <div style={{ position: "relative", display: "inline-block", overflow: "hidden" }}>
         <img
           ref={imgRef}
           src="https://fastly.picsum.photos/id/1062/800/600.jpg?hmac=gvqw06N1zijytxKxLzRgM7m-xp2v6wYSnj0LpBDvSI0"
           alt="demo"
           onLoad={handleImageLoad}
-          style={{ display: 'block', maxWidth: '100%' }}
+          style={{ display: "block", maxWidth: "100%" }}
         />
 
         {imageSize && (
-          <div
-            style={{
-              position: 'absolute',
-              left: `${crop.x}px`,
-              top: `${crop.y}px`,
-              width: `${crop.width}px`,
-              height: `${crop.height}px`,
-              border: '2px dashed #fff',
-              boxShadow: '0 0 0 10000px rgba(0,0,0,0.5)',
-              cursor: isDragging ? 'move' : 'default',
-            }}
-            onMouseDown={handleMouseDown}
-          >
-            {(['nw', 'ne', 'sw', 'se'] as ResizeDir[]).map((dir) => (
-              <div
-                key={dir}
-                style={{
-                  position: 'absolute',
-                  [dir.includes('n') ? 'top' : 'bottom']: '-5px',
-                  [dir.includes('w') ? 'left' : 'right']: '-5px',
-                  width: '10px',
-                  height: '10px',
-                  background: '#fff',
-                  border: '1px solid #000',
-                  cursor: `${dir}-resize`,
-                }}
-                onMouseDown={(e) => handleResizeMouseDown(e, dir)}
-              />
-            ))}
-          </div>
+          <Overlay
+            crop={crop}
+            handleMouseDown={handleMouseDown}
+            handleResizeMouseDown={handleResizeMouseDown}
+            isDragging={isDragging}
+          />
         )}
       </div>
 
-      <div style={{ marginBottom: '10px' }}>
+      <div style={{ marginBottom: "10px" }}>
         <button onClick={() => setAspectRatio(1)}>1:1</button>
         <button onClick={() => setAspectRatio(4 / 3)}>4:3</button>
         <button onClick={() => setAspectRatio(16 / 9)}>16:9</button>
       </div>
 
       {imageSize && (
-        <div style={{ marginTop: '10px', color: '#333' }}>
-          <strong>Crop Info:</strong> x: {crop.x}, y: {crop.y}, width: {crop.width}, height:{' '}
+        <div style={{ marginTop: "10px", color: "#333" }}>
+          <strong>Crop Info:</strong> x: {crop.x}, y: {crop.y}, width: {crop.width}, height:{" "}
           {crop.height}
-          {isDragging && ' Dragging...'}
+          {isDragging && " Dragging..."}
           {resizeDir && ` Resizing: ${resizeDir}`}
         </div>
       )}
